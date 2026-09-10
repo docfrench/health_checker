@@ -1,0 +1,6 @@
+AGENTS.md
+.env
+.git
+.gitignore
+*.db
+*.sqlite
