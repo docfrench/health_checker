@@ -1,91 +1,107 @@
 package main
 
-   import (
-      "fmt"
-      "net/http"
-      "os"
-      "sync"
-      "time"
-      "os/exec"
-   )
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"sync"
+	"time"
 
-   const apiURL = "https://deimosarchive.com/health"
-   const NPMhealth = "NPM.sh"
-   const interval = 7400 * time.Second
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+)
 
-   func main() {
-      var wg sync.WaitGroup
-      // Open file once at the start
-      file, err := os.OpenFile("health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-      if err != nil {
-         fmt.Println("Error opening file:", err)
-         return
-      }
-      defer func() {
-       if err := file.Close(); err != nil {
-           fmt.Fprintf(os.Stderr, "Error closing file: %v\n", err)
-       }
-        }()
+const apiURL = "https://deimosarchive.com/health"
+const npmContainerName = "NginxProxyManager"
+const interval = 7200 * time.Second            
 
+func main() {
+	var wg sync.WaitGroup
 
-      wg.Add(2)
-      go func() {
-         defer wg.Done()
-         for {
-            resp, err := http.Get(apiURL)
-            if err != nil {
-               result := fmt.Sprintf("Error making request: %v\n", err)
-               fmt.Print(result)
-               time.Sleep(interval)
-               continue
-            }
-            defer func() {
-            if err := resp.Body.Close(); err != nil {
-           fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
-                }
-            }()
+	file, err := os.OpenFile("health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing file: %v\n", err)
+		}
+	}()
 
-            now := time.Now()
-            result := fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
-            fmt.Print(result)
+	httpClient := &http.Client{Timeout: 10 * time.Second}
 
-            // Write to file
-            _, err = file.WriteString(result)
-            if err != nil {
-               fmt.Println("Error writing to file:", err)
-               return
-            }
+	wg.Add(2)
 
-            time.Sleep(interval)
-         }
-      }()
+	// Goroutine 1: HTTP health check
+	go func() {
+		defer wg.Done()
+		for {
+			resp, err := httpClient.Get(apiURL)
+			if err != nil {
+				result := fmt.Sprintf("Error making request: %v\n", err)
+				fmt.Print(result)
+				logResult(file, result)
+				time.Sleep(interval)
+				continue
+			}
 
-      go func() {
-         defer wg.Done()
-         for {
-            cmd := exec.Command("/bin/bash", NPMhealth)
-            output, err := cmd.Output()
-            if err != nil {
-               result := fmt.Sprintf("Error executing script: %v\n", err)
-               fmt.Print(result)
-               time.Sleep(interval)
-               continue
-            }
-            
-            now := time.Now()
-            result := fmt.Sprintf("[NPM] Status: %s <> Time: %s\n", string(output), now.Format("2 Jan 06 03:04PM"))
-            fmt.Print(result)
+			now := time.Now()
+			result := fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
+			fmt.Print(result)
+			logResult(file, result)
 
-            // Write to file
-            _, err = file.WriteString(result)
-            if err != nil {
-               fmt.Println("Error writing to file:", err)
-               return
-            }
+			// Close explicitly — a defer here never fires since this func never returns
+			if err := resp.Body.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
+			}
 
-            time.Sleep(interval)
-         }
-      }()
+			time.Sleep(interval)
+		}
+	}()
 
-      wg.Wait()
-   }
+	// Goroutine 2: Docker container health check via SDK (replaces bash/CLI exec)
+	go func() {
+		defer wg.Done()
+
+		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			fmt.Printf("Error creating Docker client: %v\n", err)
+			return
+		}
+		defer cli.Close()
+
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			inspect, err := cli.ContainerInspect(ctx, npmContainerName)
+			cancel()
+
+			now := time.Now()
+			var result string
+			if err != nil {
+				result = fmt.Sprintf("[NPM] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+			} else {
+				status := inspect.State.Status // "running", "exited", etc.
+				health := "n/a"
+				if inspect.State.Health != nil {
+					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
+				}
+				result = fmt.Sprintf("[NPM] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
+			}
+			fmt.Print(result)
+			logResult(file, result)
+
+			time.Sleep(interval)
+		}
+	}()
+
+	wg.Wait()
+	_ = container.Summary{} // placeholder if you later use container.ListOptions for multi-container checks
+}
+
+func logResult(file *os.File, result string) {
+	if _, err := file.WriteString(result); err != nil {
+		fmt.Println("Error writing to file:", err)
+	}
+}
