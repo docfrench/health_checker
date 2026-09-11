@@ -10,6 +10,7 @@ import (
     "os/exec"
     //"runtime"
 	//"sync"
+    "encoding/json"
 	"time"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
@@ -28,20 +29,34 @@ const (
 )
 
 type containerTarget struct {
-	label string
-	name  string
+    Label string `json:"label"`
+    Name  string `json:"name"`
 }
 
-var containers = []containerTarget{
+
+var defaultContainers = []containerTarget{
 	{"NPM", "NginxProxyManager"},
-	{"Jellyfin", "Jellyfin"},
-	{"LocalStack", "localstack-main"},
-	{"FileBrowser", "FileBrowserQuantum"},
-	{"Kavita", "kavita"},
-	{"AudioBookShelf", "audiobookshelf"},
-	{"NGINX", "nginx-homepage"},
 	{"Cloudflare-DDNS", "Cloudflare-DDNS"},
 }
+
+func loadContainers() []containerTarget {
+    data, err := os.ReadFile("config.json")
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error reading config.json, using defaults: %v\n", err)
+        return defaultContainers
+    }
+
+    var targets []containerTarget
+    if err := json.Unmarshal(data, &targets); err != nil {
+        fmt.Fprintf(os.Stderr, "Error parsing config.json, using defaults: %v\n", err)
+        return defaultContainers
+    }
+    return targets
+}
+
+
+
+
 
 
 type styles struct {
@@ -200,7 +215,7 @@ func (m model) View() tea.View {
 }
 
 func main() {
-
+    var targets = loadContainers()
 
 	file, err := os.OpenFile("health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -257,7 +272,7 @@ func main() {
 
 	// One goroutine per container target, all sharing the single Docker client.
 	// cli is safe to share across goroutines for reads like ContainerInspect.
-	for _, target := range containers {
+	for _, target := range targets {
 		target := target // capture loop variable per-iteration
 		go func() {
 
@@ -286,7 +301,7 @@ func main() {
 
 func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	inspect, err := cli.ContainerInspect(ctx, target.name)
+	inspect, err := cli.ContainerInspect(ctx, target.Name)
 	cancel()
 
 	now := time.Now()
@@ -294,7 +309,7 @@ func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
 
 
 	if err != nil {
-		result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.label, err, now.Format("2 Jan 06 03:04PM"))
+		result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.Label, err, now.Format("2 Jan 06 03:04PM"))
 
 	} else {
 		status := inspect.State.Status // "running", "exited", etc.
@@ -302,7 +317,7 @@ func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
 		if inspect.State.Health != nil {
 			health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
 		}
-		result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.label, status, health, now.Format("2 Jan 06 03:04PM"))
+		result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.Label, status, health, now.Format("2 Jan 06 03:04PM"))
 		//if status == "running" {
         // styling somehow?
 		//} else {
