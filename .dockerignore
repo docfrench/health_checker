@@ -4,3 +4,4 @@ AGENTS.md
 .gitignore
 *.db
 *.sqlite
+*.bak

@@ -1,3 +1,4 @@
 # Secrets / environment
 .env
 AGENTS.md
+*.bak
