@@ -35,17 +35,16 @@ var containers = []containerTarget{
 	{"AudioBookShelf", "audiobookshelf"},
 	{"NGINX", "nginx-homepage"},
 	{"Cloudflare-DDNS", "Cloudflare-DDNS"},
-	{"AudioBookShelf", "audiobookshelf"},
 }
 
 func main() {
-	fmt.Printf("%sDeimos Archive Container Status%s\n", colorYellow, colorReset)	
-    var wg sync.WaitGroup
+	fmt.Printf("%sDeimos Archive Container Status%s\n", colorYellow, colorReset)
+
+	var wg sync.WaitGroup
 
 	file, err := os.OpenFile("health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
-
 		return
 	}
 	defer func() {
@@ -72,31 +71,29 @@ func main() {
 
 	// Goroutine: HTTP health check
 	go func() {
-
-	    var color string
 		defer wg.Done()
 		for {
+			var result string
+			var color string
+
 			resp, err := httpClient.Get(apiURL)
 			if err != nil {
-				result := fmt.Sprintf("Error making request: %v\n", err)
-                color = colorRed	
-				logResult(file, result)
-				continue
+				result = fmt.Sprintf("Error making request: %v\n", err)
+				color = colorRed
+			} else {
+				now := time.Now()
+				result = fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
+				color = colorGreen
+
+				if err := resp.Body.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
+				}
 			}
 
-			now := time.Now()
-			result := fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
-            color = colorGreen
 			logResult(file, result)
-
-			if err := resp.Body.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
-			}
-            fmt.Printf("%s%s%s", color, result, colorReset)
+			fmt.Printf("%s%s%s", color, result, colorReset)
 			time.Sleep(interval)
 		}
-        
-
 	}()
 
 	// One goroutine per container target, all sharing the single Docker client.
