@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
     "os/exec"
-    //"runtime"
-	//"sync"
     "encoding/json"
 	"time"
 	"charm.land/bubbles/v2/list"
@@ -40,7 +38,7 @@ var defaultContainers = []containerTarget{
 }
 
 func loadContainers() []containerTarget {
-    data, err := os.ReadFile("config.json")
+    data, err := os.ReadFile("/data/config.json")
     if err != nil {
         fmt.Fprintf(os.Stderr, "Error reading config.json, using defaults: %v\n", err)
         return defaultContainers
@@ -192,7 +190,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func tailLog() (string, error) {
-    out, err := exec.Command("tail", "-n", "30", "./health_checker.syslog").Output()
+    out, err := exec.Command("tail", "-n", "30", "/data/health_checker.syslog").Output()
     if err != nil {
         return "", err
     }
@@ -217,7 +215,7 @@ func (m model) View() tea.View {
 func main() {
     var targets = loadContainers()
 
-	file, err := os.OpenFile("health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile("/data/health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return

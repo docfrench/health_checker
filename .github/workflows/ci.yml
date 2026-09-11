@@ -64,7 +64,7 @@ jobs:
             --name health_checker \
             --network br0 \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v /mnt/user/appdata/health-checker:/app \
+            -v /mnt/user/appdata/health-checker:/data \
             ghcr.io/${{ github.repository_owner }}/health_checker:${{ github.sha }} 
             
       
