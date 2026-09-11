@@ -11,9 +11,18 @@ import (
 	"github.com/docker/docker/client"
 )
 
-const apiURL = "https://deimosarchive.com/health"
-const npmContainerName = "NginxProxyManager"
-const nginxContainer = "nginx-homepage"  
+const (
+    apiURL = "https://deimosarchive.com/health"
+    npmContainerName = "NginxProxyManager"
+    jellyfinContainer = "Jellyfin"  
+    localstackContainer = "localstack-main"  
+    filebrowserContainer = "FileBrowserQuantum"  
+	colorReset = "\033[0m"
+	colorRed   = "\033[31m"
+	colorGreen = "\033[32m"
+	colorYellow = "\033[33m"
+)
+
 const interval = 7200 * time.Second            
 
 func main() {
@@ -86,15 +95,17 @@ func main() {
 			var result string
 			if err != nil {
 				result = fmt.Sprintf("[NPM] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+                fmt.Printf("%s[NPM] Status: %s%s\n", colorGreen, status, colorReset)
 			} else {
 				status := inspect.State.Status // "running", "exited", etc.
 				health := "n/a"
 				if inspect.State.Health != nil {
 					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
 				}
+                fmt.Printf("%s[NPM] Status: %s%s\n", colorGreen, status, colorReset)
 				result = fmt.Sprintf("[NPM] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
 			}
-			fmt.Print(result)
+
 			logResult(file, result)
 
 			time.Sleep(interval)
@@ -123,14 +134,83 @@ func main() {
 			now := time.Now()
 			var result string
 			if err != nil {
-				result = fmt.Sprintf("[NPM] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+				result = fmt.Sprintf("[NGINX Homepage] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
 			} else {
 				status := inspect.State.Status // "running", "exited", etc.
 				health := "n/a"
 				if inspect.State.Health != nil {
 					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
 				}
-				result = fmt.Sprintf("[NPM] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
+				result = fmt.Sprintf("[NGINX Homepage] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
+			}
+			fmt.Print(result)
+			logResult(file, result)
+
+			time.Sleep(interval)
+		}
+	}()
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			inspect, err := cli.ContainerInspect(ctx, jellyfinContainer)
+			cancel()
+
+			now := time.Now()
+			var result string
+			if err != nil {
+				result = fmt.Sprintf("[Jellyfin] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+			} else {
+				status := inspect.State.Status // "running", "exited", etc.
+				health := "n/a"
+				if inspect.State.Health != nil {
+					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
+				}
+				result = fmt.Sprintf("[Jellyfin] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
+			}
+			fmt.Print(result)
+			logResult(file, result)
+
+			time.Sleep(interval)
+		}
+	}()
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			inspect, err := cli.ContainerInspect(ctx, localstackContainer)
+			cancel()
+
+			now := time.Now()
+			var result string
+			if err != nil {
+				result = fmt.Sprintf("[LocalStack Cloud] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+			} else {
+				status := inspect.State.Status // "running", "exited", etc.
+				health := "n/a"
+				if inspect.State.Health != nil {
+					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
+				}
+				result = fmt.Sprintf("[LocalStack Cloud] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
+			}
+			fmt.Print(result)
+			logResult(file, result)
+
+			time.Sleep(interval)
+		}
+	}()
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			inspect, err := cli.ContainerInspect(ctx, filebrowserContainer)
+			cancel()
+
+			now := time.Now()
+			var result string
+			if err != nil {
+				result = fmt.Sprintf("[FileBrowser] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+			} else {
+				status := inspect.State.Status // "running", "exited", etc.
+				health := "n/a"
+				if inspect.State.Health != nil {
+					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
+				}
+				result = fmt.Sprintf("[FileBrowser] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
 			}
 			fmt.Print(result)
 			logResult(file, result)
