@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
     "os/exec"
-    "runtime"
+    //"runtime"
 	//"sync"
 	"time"
 	"charm.land/bubbles/v2/list"
