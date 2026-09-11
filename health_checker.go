@@ -8,12 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
 const apiURL = "https://deimosarchive.com/health"
-const npmContainerName = "NginxProxyManager"
+const npmContainerName = "nginx-proxy-manager" 
 const interval = 7200 * time.Second            
 
 func main() {
@@ -61,7 +60,7 @@ func main() {
 		}
 	}()
 
-	// Goroutine 2: Docker container health check via SDK (replaces bash/CLI exec)
+	// Goroutine 2: Docker container health check via SDK
 	go func() {
 		defer wg.Done()
 
@@ -97,7 +96,6 @@ func main() {
 	}()
 
 	wg.Wait()
-	_ = container.Summary{} // placeholder if you later use container.ListOptions for multi-container checks
 }
 
 func logResult(file *os.File, result string) {
