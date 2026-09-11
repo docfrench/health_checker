@@ -12,7 +12,8 @@ import (
 )
 
 const apiURL = "https://deimosarchive.com/health"
-const npmContainerName = "nginx-proxy-manager" 
+const npmContainerName = "NginxProxyManager"
+const nginxContainer = "nginx-homepage"  
 const interval = 7200 * time.Second            
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 
-	wg.Add(2)
+	wg.Add(3)
 
 	// Goroutine 1: HTTP health check
 	go func() {
@@ -99,7 +100,44 @@ func main() {
 			time.Sleep(interval)
 		}
 	}()
+	go func() {
+		defer wg.Done()
 
+		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			fmt.Printf("Error creating Docker client: %v\n", err)
+			return
+		}
+		defer func() {
+			if err := cli.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error closing Docker client: %v\n", err)
+			}
+		}()
+
+
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			inspect, err := cli.ContainerInspect(ctx, nginxContainer)
+			cancel()
+
+			now := time.Now()
+			var result string
+			if err != nil {
+				result = fmt.Sprintf("[NPM] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
+			} else {
+				status := inspect.State.Status // "running", "exited", etc.
+				health := "n/a"
+				if inspect.State.Health != nil {
+					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
+				}
+				result = fmt.Sprintf("[NPM] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
+			}
+			fmt.Print(result)
+			logResult(file, result)
+
+			time.Sleep(interval)
+		}
+	}()
 	wg.Wait()
 }
 
