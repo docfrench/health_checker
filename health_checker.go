@@ -12,18 +12,31 @@ import (
 )
 
 const (
-    apiURL = "https://deimosarchive.com/health"
-    npmContainerName = "NginxProxyManager"
-    jellyfinContainer = "Jellyfin"  
-    localstackContainer = "localstack-main"  
-    filebrowserContainer = "FileBrowserQuantum"  
-	colorReset = "\033[0m"
-	colorRed   = "\033[31m"
-	colorGreen = "\033[32m"
+	apiURL      = "https://deimosarchive.com/health"
+	interval    = 7200 * time.Second
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
 )
 
-const interval = 7200 * time.Second            
+// containerTarget pairs a display label with the actual Docker container name.
+type containerTarget struct {
+	label string
+	name  string
+}
+
+var containers = []containerTarget{
+	{"NPM", "NginxProxyManager"},
+	{"Jellyfin", "Jellyfin"},
+	{"LocalStack", "localstack-main"},
+	{"FileBrowser", "FileBrowserQuantum"},
+	{"Kavita", "kavita"},
+	{"AudioBookShelf", "audiobookshelf"},
+	{"NGINX", "nginx-homepage"},
+	{"Cloudflare-DDNS", "Cloudflare-DDNS"},
+	{"AudioBookShelf", "audiobookshelf"},
+}
 
 func main() {
 	var wg sync.WaitGroup
@@ -41,9 +54,21 @@ func main() {
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 
-	wg.Add(3)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		fmt.Printf("Error creating Docker client: %v\n", err)
+		return
+	}
+	defer func() {
+		if err := cli.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing Docker client: %v\n", err)
+		}
+	}()
 
-	// Goroutine 1: HTTP health check
+	// wg count: 1 HTTP checker + 1 goroutine per container target
+	wg.Add(1 + len(containers))
+
+	// Goroutine: HTTP health check
 	go func() {
 		defer wg.Done()
 		for {
@@ -61,7 +86,6 @@ func main() {
 			fmt.Print(result)
 			logResult(file, result)
 
-			// Close explicitly — a defer here never fires since this func never returns
 			if err := resp.Body.Close(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
 			}
@@ -70,155 +94,50 @@ func main() {
 		}
 	}()
 
-	// Goroutine 2: Docker container health check via SDK
-	go func() {
-		defer wg.Done()
-
-		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-		if err != nil {
-			fmt.Printf("Error creating Docker client: %v\n", err)
-			return
-		}
-		defer func() {
-			if err := cli.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error closing Docker client: %v\n", err)
+	// One goroutine per container target, all sharing the single Docker client.
+	// cli is safe to share across goroutines for reads like ContainerInspect.
+	for _, target := range containers {
+		target := target // capture loop variable per-iteration
+		go func() {
+			defer wg.Done()
+			for {
+				checkContainer(cli, file, target)
+				time.Sleep(interval)
 			}
 		}()
+	}
 
-
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			inspect, err := cli.ContainerInspect(ctx, npmContainerName)
-			cancel()
-
-			now := time.Now()
-			var result string
-			if err != nil {
-				result = fmt.Sprintf("[NPM] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
-                fmt.Printf("%s[NPM] Status: %s%s\n", colorGreen, status, colorReset)
-			} else {
-				status := inspect.State.Status // "running", "exited", etc.
-				health := "n/a"
-				if inspect.State.Health != nil {
-					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
-				}
-                fmt.Printf("%s[NPM] Status: %s%s\n", colorGreen, status, colorReset)
-				result = fmt.Sprintf("[NPM] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
-			}
-
-			logResult(file, result)
-
-			time.Sleep(interval)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-
-		cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-		if err != nil {
-			fmt.Printf("Error creating Docker client: %v\n", err)
-			return
-		}
-		defer func() {
-			if err := cli.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error closing Docker client: %v\n", err)
-			}
-		}()
-
-
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			inspect, err := cli.ContainerInspect(ctx, nginxContainer)
-			cancel()
-
-			now := time.Now()
-			var result string
-			if err != nil {
-				result = fmt.Sprintf("[NGINX Homepage] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
-			} else {
-				status := inspect.State.Status // "running", "exited", etc.
-				health := "n/a"
-				if inspect.State.Health != nil {
-					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
-				}
-				result = fmt.Sprintf("[NGINX Homepage] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
-			}
-			fmt.Print(result)
-			logResult(file, result)
-
-			time.Sleep(interval)
-		}
-	    }()
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			inspect, err := cli.ContainerInspect(ctx, jellyfinContainer)
-			cancel()
-
-			now := time.Now()
-			var result string
-			if err != nil {
-				result = fmt.Sprintf("[Jellyfin] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
-			} else {
-				status := inspect.State.Status // "running", "exited", etc.
-				health := "n/a"
-				if inspect.State.Health != nil {
-					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
-				}
-				result = fmt.Sprintf("[Jellyfin] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
-			}
-			fmt.Print(result)
-			logResult(file, result)
-
-			time.Sleep(interval)
-		}
-	    }()
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			inspect, err := cli.ContainerInspect(ctx, localstackContainer)
-			cancel()
-
-			now := time.Now()
-			var result string
-			if err != nil {
-				result = fmt.Sprintf("[LocalStack Cloud] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
-			} else {
-				status := inspect.State.Status // "running", "exited", etc.
-				health := "n/a"
-				if inspect.State.Health != nil {
-					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
-				}
-				result = fmt.Sprintf("[LocalStack Cloud] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
-			}
-			fmt.Print(result)
-			logResult(file, result)
-
-			time.Sleep(interval)
-		}
-	    }()
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			inspect, err := cli.ContainerInspect(ctx, filebrowserContainer)
-			cancel()
-
-			now := time.Now()
-			var result string
-			if err != nil {
-				result = fmt.Sprintf("[FileBrowser] Error inspecting container: %v <> Time: %s\n", err, now.Format("2 Jan 06 03:04PM"))
-			} else {
-				status := inspect.State.Status // "running", "exited", etc.
-				health := "n/a"
-				if inspect.State.Health != nil {
-					health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
-				}
-				result = fmt.Sprintf("[FileBrowser] Status: %s <> Health: %s <> Time: %s\n", status, health, now.Format("2 Jan 06 03:04PM"))
-			}
-			fmt.Print(result)
-			logResult(file, result)
-
-			time.Sleep(interval)
-		}
-	    }()
 	wg.Wait()
+}
+
+func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	inspect, err := cli.ContainerInspect(ctx, target.name)
+	cancel()
+
+	now := time.Now()
+	var result string
+	var color string
+
+	if err != nil {
+		result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.label, err, now.Format("2 Jan 06 03:04PM"))
+		color = colorRed
+	} else {
+		status := inspect.State.Status // "running", "exited", etc.
+		health := "n/a"
+		if inspect.State.Health != nil {
+			health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
+		}
+		result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.label, status, health, now.Format("2 Jan 06 03:04PM"))
+		if status == "running" {
+			color = colorGreen
+		} else {
+			color = colorYellow
+		}
+	}
+
+	fmt.Printf("%s%s%s", color, result, colorReset)
+	logResult(file, result)
 }
 
 func logResult(file *os.File, result string) {
