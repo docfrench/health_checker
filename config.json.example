@@ -1,0 +1,10 @@
+[
+    {"label":"NPM","name":"NginxProxyManager"},
+    {"label":"Jellyfin","name":"Jellyfin"},
+    {"label":"LocalStack","name":"localstack-main"},
+    {"label":"FileBrowser","name":"FileBrowserQuantum"},
+    {"label":"Kavita","name":"kavita"},
+    {"label":"AudioBookShelf","name":"audiobookshelf"},
+    {"label":"NGINX","name":"nginx-homepage"},
+    {"label":"Cloudflare-DDNS","name":"Cloudflare-DDNS"},
+]
