@@ -72,7 +72,7 @@ func main() {
 
 	// Goroutine: HTTP health check
 	go func() {
-        var result string
+
 	    var color string
 		defer wg.Done()
 		for {
@@ -92,11 +92,11 @@ func main() {
 			if err := resp.Body.Close(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
 			}
-
+            fmt.Printf("%s%s%s", color, result, colorReset)
 			time.Sleep(interval)
 		}
-        fmt.Printf("%s%s%s", color, result, colorReset)
-        time.Sleep(interval)
+        
+
 	}()
 
 	// One goroutine per container target, all sharing the single Docker client.
