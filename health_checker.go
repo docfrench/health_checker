@@ -23,6 +23,7 @@ package main
       }
       defer file.Close()
 
+
       wg.Add(2)
       go func() {
          defer wg.Done()
