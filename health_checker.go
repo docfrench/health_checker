@@ -69,7 +69,12 @@ func main() {
 			fmt.Printf("Error creating Docker client: %v\n", err)
 			return
 		}
-		defer cli.Close()
+		defer func() {
+			if err := cli.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error closing Docker client: %v\n", err)
+			}
+		}()
+
 
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
