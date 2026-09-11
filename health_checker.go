@@ -21,7 +21,11 @@ package main
          fmt.Println("Error opening file:", err)
          return
       }
-      defer file.Close()
+      defer func() {
+       if err := file.Close(); err != nil {
+           fmt.Fprintf(os.Stderr, "Error closing file: %v\n", err)
+       }
+        }()
 
 
       wg.Add(2)
@@ -35,7 +39,11 @@ package main
                time.Sleep(interval)
                continue
             }
-            defer resp.Body.Close()
+            defer func() {
+            if err := resp.Body.Close(); err != nil {
+           fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
+                }
+            }()
 
             now := time.Now()
             result := fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
