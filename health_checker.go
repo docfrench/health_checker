@@ -39,11 +39,13 @@ var containers = []containerTarget{
 }
 
 func main() {
-	var wg sync.WaitGroup
+	fmt.Printf("%sDeimos Archive Container Status%s\n", colorYellow, colorReset)	
+    var wg sync.WaitGroup
 
 	file, err := os.OpenFile("health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
+
 		return
 	}
 	defer func() {
@@ -70,20 +72,21 @@ func main() {
 
 	// Goroutine: HTTP health check
 	go func() {
+        var result string
+	    var color string
 		defer wg.Done()
 		for {
 			resp, err := httpClient.Get(apiURL)
 			if err != nil {
 				result := fmt.Sprintf("Error making request: %v\n", err)
-				fmt.Print(result)
+                color = colorRed	
 				logResult(file, result)
-				time.Sleep(interval)
 				continue
 			}
 
 			now := time.Now()
 			result := fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
-			fmt.Print(result)
+            color = colorGreen
 			logResult(file, result)
 
 			if err := resp.Body.Close(); err != nil {
@@ -92,6 +95,8 @@ func main() {
 
 			time.Sleep(interval)
 		}
+        fmt.Printf("%s%s%s", color, result, colorReset)
+        time.Sleep(interval)
 	}()
 
 	// One goroutine per container target, all sharing the single Docker client.
