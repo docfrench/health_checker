@@ -91,7 +91,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		}
 	}
 
-	fmt.Fprint(w, fn(str))
+	_, _ = fmt.Fprint(w, fn(str))
 }
 
 type model struct {
@@ -101,25 +101,6 @@ type model struct {
 	quitting bool
     logOutput string
 }
-
-
-func ClearScreen() {
-    if runtime.GOOS == "windows" {
-        cmd := exec.Command("cmd", "/c", "cls")
-        cmd.Stdout = os.Stdout
-        cmd.Run()
-    } else {
-        cmd := exec.Command("clear")
-        cmd.Stdout = os.Stdout
-        cmd.Run()
-    }
-}
-
-
-
-
-
-
 
 func initialModel() model {
 	items := []list.Item{
@@ -149,7 +130,6 @@ func (m *model) updateStyles(isDark bool) {
 }
 
 func (m model) Init() tea.Cmd {
-    ClearScreen()	
     return nil
 }
 
@@ -323,11 +303,11 @@ func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
 			health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
 		}
 		result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.label, status, health, now.Format("2 Jan 06 03:04PM"))
-		if status == "running" {
+		//if status == "running" {
         // styling somehow?
-		} else {
-
-		}
+		//} else {
+        // styling somehow?
+		//}
 	}
 
 
