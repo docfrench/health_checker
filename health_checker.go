@@ -148,7 +148,7 @@ func main() {
 
 			time.Sleep(interval)
 		}
-	}()
+	    }()
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			inspect, err := cli.ContainerInspect(ctx, jellyfinContainer)
@@ -171,7 +171,7 @@ func main() {
 
 			time.Sleep(interval)
 		}
-	}()
+	    }()
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			inspect, err := cli.ContainerInspect(ctx, localstackContainer)
@@ -194,7 +194,7 @@ func main() {
 
 			time.Sleep(interval)
 		}
-	}()
+	    }()
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			inspect, err := cli.ContainerInspect(ctx, filebrowserContainer)
@@ -217,7 +217,7 @@ func main() {
 
 			time.Sleep(interval)
 		}
-	}()
+	    }()
 	wg.Wait()
 }
 
