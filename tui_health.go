@@ -52,11 +52,6 @@ func loadContainers() []containerTarget {
     return targets
 }
 
-
-
-
-
-
 type styles struct {
 	title        lipgloss.Style
 	item         lipgloss.Style
@@ -215,6 +210,12 @@ func (m model) View() tea.View {
 func main() {
     var targets = loadContainers()
 
+    localTime := time.Now()
+    fmt.Println("Local time:", localTime)
+
+    // See what time zone is being used
+    fmt.Println("Time zone:", localTime.Location())
+
 	file, err := os.OpenFile("/data/health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
@@ -283,13 +284,6 @@ func main() {
 
 
 
-
-
-
-
-
-
-
 	
     if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
 		fmt.Println("Error running program:", err)
@@ -316,11 +310,6 @@ func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
 			health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
 		}
 		result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.Label, status, health, now.Format("2 Jan 06 03:04PM"))
-		//if status == "running" {
-        // styling somehow?
-		//} else {
-        // styling somehow?
-		//}
 	}
 
 
