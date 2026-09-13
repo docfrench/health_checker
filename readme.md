@@ -2,7 +2,7 @@
 
 # Health Checker
 
-![alt text](https://github.com/docfrench/images/main.png "Main screen")
+![alt text](https://github.com/docfrench/health_checker/blob/main/images/main.png "Main screen")
 
 A simple Go binary to track the health status of local Docker containers. Created for deployment on my Unraid server.
 
@@ -22,8 +22,8 @@ docker exec -it health_checker ./health_checker --tui
 
 Once connected, choose to either view the logs:
 
-![alt text](https://github.com/docfrench/health_checker/images/logs.png "Tail logs")
+![alt text](https://github.com/docfrench/health_checker/blob/main/images/logs.png "Tail logs")
 
 Or view live status of containers:
 
-![alt text](https://github.com/docfrench/health_checker/images/live.png "Live status")
+![alt text](https://github.com/docfrench/health_checker/blob/main/images/live.png "Live status")
