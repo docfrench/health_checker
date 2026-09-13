@@ -2,18 +2,19 @@
 
 # Health Checker
 
-A simple Go binary to track the health status of local Docker containers. Intended for deployment on my Unraid server.
+A simple Go binary to track the health status of local Docker containers. Created for deployment on my Unraid server.
 
-Uses Bubble Tea for TUI.
+Uses concurrent goroutines to poll the status of Docker containers (and HTTP API health endpoints), and writes them to a persistent log. Can also display the live status. Containers / API endpoints are set through a config.json, edited by the user.
 
-https://github.com/charmbracelet/bubbletea/tree/main
+Uses [Bubble Tea](https://github.com/charmbracelet/bubbletea/tree/main "Bubble Tea") for a TUI.
 
-```
-The fun, functional and stateful way to build terminal apps. A Go framework based on The Elm Architecture. Bubble Tea is well-suited for simple and complex terminal applications, either inline, full-window, or a mix of both.
+>The fun, functional and stateful way to build terminal apps. A Go framework based on The Elm Architecture. Bubble Tea is well-suited for simple and complex terminal applications, either inline, full-window, or a mix of both.
 
-```
+
 
 ## Use
-SSH into your Docker host and attach the container.
+Deploy as a Docker container on your Docker host. SSH into the host and run:
 
-
+```
+docker exec -it health_checker ./health_checker --tui
+```
