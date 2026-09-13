@@ -14,7 +14,11 @@ Uses [Bubble Tea](https://github.com/charmbracelet/bubbletea/tree/main "Bubble T
 
 
 ## Use
-Deploy as a Docker container on your Docker host. SSH into the host and run:
+Deploy as a Docker container on your Docker host. 
+
+Edit config.json.example -> config.json
+
+Add the name of your server and any endpoints you want to monitor. SSH into your Docker host and run:
 
 ```
 docker exec -it health_checker ./health_checker --tui

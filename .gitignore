@@ -3,3 +3,4 @@
 AGENTS.md
 *.bak
 *.json
+*.syslog
