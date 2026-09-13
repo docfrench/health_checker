@@ -39,11 +39,13 @@ type httpTarget struct {
 }
 
 type appConfig struct {
+    ServerName    string            `json:"server_name"`
 	Containers    []containerTarget `json:"containers"`
 	HTTPEndpoints []httpTarget      `json:"http_endpoints"`
 }
 
 var defaultConfig = appConfig{
+    ServerName: "My Server",
 	Containers: []containerTarget{
 		{"NPM", "NginxProxyManager"},
 		{"Cloudflare-DDNS", "cloudflare-ddns"},
@@ -60,6 +62,7 @@ type model struct {
 	quitting     bool
 	logOutput    string
 	statusOutput string
+    serverName   string
 }
 
 type tickMsg time.Time
@@ -259,7 +262,7 @@ func readStatusCmd() tea.Cmd {
 	}
 }
 
-func initialModel() model {
+func initialModel(config appConfig) model {
 	items := []list.Item{
 		item("Show tail -n 30"),
 		item("Live Monitoring"),
@@ -268,11 +271,11 @@ func initialModel() model {
 	const defaultWidth = 20
 
 	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Deimos Archive <> Container Health Checker"
+	l.Title = fmt.Sprintf("%s <> Container Health Checker", config.ServerName)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 
-	m := model{list: l}
+	m := model{list: l, serverName: config.ServerName}
 	m.updateStyles(true) // default to dark styles.
 	return m
 }
@@ -356,10 +359,10 @@ func tailLog() (string, error) {
 func (m model) View() tea.View {
 	var v tea.View
 	if m.choice == "Show tail -n 30" {
-		header := m.styles.title.Render("Container Status Log <> Press Esc to return")
+		header := m.styles.title.Render(fmt.Sprintf("%s <> Container Status Log <> Press Esc to return", m.serverName))
 		v = tea.NewView(header + "\n\n" + m.logOutput)
 	} else if m.choice == "Live Monitoring" {
-		header := m.styles.title.Render("Live Container Status <> Press Esc to return")
+		header := m.styles.title.Render(fmt.Sprintf("%s <> Live Container Status <> Press Esc to return", m.serverName))
 		v = tea.NewView(header + "\n\n" + m.statusOutput)
 	} else if m.quitting {
 		v = tea.NewView(m.styles.quitText.Render("quitting now!"))
@@ -499,7 +502,7 @@ func main() {
 	}
 
 	if len(os.Args) > 1 && os.Args[1] == "--tui" {
-        if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
+        if _, err := tea.NewProgram(initialModel(config)).Run(); err != nil {
             fmt.Println("Error running program:", err)
             os.Exit(1)
         }
