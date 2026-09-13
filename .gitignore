@@ -2,4 +2,4 @@
 .env
 AGENTS.md
 *.bak
-*.json
+config.json

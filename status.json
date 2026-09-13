@@ -1,0 +1,10 @@
+{
+  "updated_at": "2026-09-13T14:32:01-04:00",
+  "containers": [
+    {"label": "NPM", "status": "running", "health": "healthy", "checked_at": "2026-09-13T14:32:00-04:00"},
+    {"label": "Jellyfin", "status": "running", "health": "n/a", "checked_at": "2026-09-13T14:32:00-04:00"}
+  ],
+  "http_checks": [
+    {"label": "Deimos Archive FastAPI", "status_code": 200, "checked_at": "2026-09-13T14:31:58-04:00"}
+  ]
+}
