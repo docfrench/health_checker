@@ -359,7 +359,7 @@ func tailLog() (string, error) {
 func (m model) View() tea.View {
 	var v tea.View
 	if m.choice == "Show tail -n 30" {
-		header := m.styles.title.Render(fmt.Sprintf("%s <> Container Status Log <> Press Esc to return", m.ServerName))
+		header := m.styles.title.Render(fmt.Sprintf("%s <> Container Status Log <> Press Esc to return", m.serverName))
 		v = tea.NewView(header + "\n\n" + m.logOutput)
 	} else if m.choice == "Live Monitoring" {
 		header := m.styles.title.Render(fmt.Sprintf("%s <> Live Container Status <> Press Esc to return", m.serverName))
