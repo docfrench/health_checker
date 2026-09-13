@@ -120,14 +120,48 @@ type model struct {
 	list     list.Model
 	choice   string
 	styles   styles
-	quitting bool
-    logOutput string
+	quitting    bool
+    logOutput   string
+    statusOutput string
 }
+
+type statusMsg string
+
+func tickCmd() tea.Cmd {
+    return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+        return tickMsg(t)
+    })
+}
+type tickMsg time.Time
+
+
+func readStatus() (string, error) {
+    data, err := os.ReadFile("/data/status.json")
+    if err != nil {
+        return "", err
+    }
+    // parse + format for display — this is where you'd unmarshal
+    // into your snapshot struct and build a human-readable string
+    return string(data), nil // placeholder until formatting is written
+}
+
+func readStatusCmd() tea.Cmd {
+    return func() tea.Msg {
+        output, err := readStatus()
+        if err != nil {
+            return statusMsg(fmt.Sprintf("error reading status: %v", err))
+        }
+        return statusMsg(output)
+    }
+}
+
+
+
 
 func initialModel() model {
 	items := []list.Item{
 		item("Show tail -n 30"),
-        item("Second option"),
+        item("Live Monitoring"),
 
 	}
 
@@ -165,6 +199,20 @@ func runTailCmd() tea.Cmd {
     }
 }
 
+
+func runLiveCmd() tea.Cmd {
+    return func() tea.Msg {
+        output, err := tailLog()
+        if err != nil {
+            return logMsg(fmt.Sprintf("error reading log: %v", err))
+        }
+        return logMsg(output)
+    }
+}
+
+
+
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
     switch msg := msg.(type) {
@@ -183,12 +231,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				m.choice = string(selected)
 			}
+            if m.choice == "Live Monitoring" {
+                return m, tea.Batch(readStatusCmd(), tickCmd())
+            }
 			return m, runTailCmd()
         case "esc":
-            m.choice = ""            
-            //tea.NewProgram(initialModel(), tea.WithAltScreen())           
+            m.choice = ""                
             return m, nil
 		}
+        case tickMsg:
+            if m.choice == "Live Monitoring" {
+            return m, tea.Batch(readStatusCmd(), tickCmd())
+            }
+            return m, nil
+        case statusMsg:
+            m.statusOutput = string(msg)
+            return m, nil
+            
     case logMsg:
         m.logOutput = string(msg)
         return m, nil
@@ -212,7 +271,10 @@ func (m model) View() tea.View {
 	if m.choice == "Show tail -n 30" {         
         header := m.styles.title.Render("Container Status Log <> Press Esc to return")
         v = tea.NewView(header + "\n\n" + m.logOutput)
-	} else if m.quitting {
+	} else if m.choice == "Live Monitoring"{
+        header := m.styles.title.Render("Live Container Status <> Press Esc to return")
+        v = tea.NewView(header + "\n\n" + m.statusOutput)
+    } else if m.quitting {
 		v = tea.NewView(m.styles.quitText.Render("Quit."))
 	} else {
         v = tea.NewView("\n" + m.list.View())
@@ -250,7 +312,7 @@ func main() {
 
 
 
-	// Goroutine: HTTP health check
+	// HTTP API health check
     for _, target := range config.HTTPEndpoints {
         target := target
         go func() {
@@ -273,9 +335,8 @@ func main() {
         }()
     }
 
-	// One goroutine per container target, all sharing the single Docker client.
-	// cli is safe to share across goroutines for reads like ContainerInspect.
-    	
+
+    // Container health check
     for _, target := range config.Containers {
 		target := target // capture loop variable per-iteration
 		go func() {
