@@ -31,25 +31,39 @@ type containerTarget struct {
     Name  string `json:"name"`
 }
 
-
-var defaultContainers = []containerTarget{
-	{"NPM", "NginxProxyManager"},
-	{"Cloudflare-DDNS", "Cloudflare-DDNS"},
+type httpTarget struct {
+    Label string `json:"label"`
+    URL   string `json:"url"`
 }
 
-func loadContainers() []containerTarget {
+type appConfig struct {
+    Containers    []containerTarget `json:"containers"`
+    HTTPEndpoints []httpTarget      `json:"http_endpoints"`
+}
+
+var defaultConfig = appConfig{
+    Containers: []containerTarget{
+        {"NPM", "NginxProxyManager"},
+        {"Cloudflare-DDNS", "Cloudflare-DDNS"},
+    },
+    HTTPEndpoints: []httpTarget{
+        {"Deimos Archive FastAPI", "https://deimosarchive.com/health"},
+    },
+}
+
+func loadConfig() appConfig {
     data, err := os.ReadFile("/data/config.json")
     if err != nil {
         fmt.Fprintf(os.Stderr, "Error reading config.json, using defaults: %v\n", err)
-        return defaultContainers
+        return defaultConfig
     }
 
-    var targets []containerTarget
-    if err := json.Unmarshal(data, &targets); err != nil {
+    var cfg appConfig
+    if err := json.Unmarshal(data, &cfg); err != nil {
         fmt.Fprintf(os.Stderr, "Error parsing config.json, using defaults: %v\n", err)
-        return defaultContainers
+        return defaultConfig
     }
-    return targets
+    return cfg
 }
 
 type styles struct {
@@ -208,13 +222,7 @@ func (m model) View() tea.View {
 }
 
 func main() {
-    var targets = loadContainers()
-
-    localTime := time.Now()
-    fmt.Println("Local time:", localTime)
-
-    // See what time zone is being used
-    fmt.Println("Time zone:", localTime.Location())
+    config := loadConfig()
 
 	file, err := os.OpenFile("/data/health_checker.syslog", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -243,35 +251,32 @@ func main() {
 
 
 	// Goroutine: HTTP health check
-	go func() {
+    for _, target := range config.HTTPEndpoints {
+        target := target
+        go func() {
+        for {
+            var result string
+            resp, err := httpClient.Get(target.URL)
+            if err != nil {
+                result = fmt.Sprintf("[%s] Error making request: %v\n", target.Label, err)
+            } else {
+                now := time.Now()
+                result = fmt.Sprintf("[%s] Status: %d <> Time: %s\n", target.Label, resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
+                if err := resp.Body.Close(); err != nil {
+                    fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
+                }
+            }
 
-		for {
-			var result string
-			//var color string
-
-			resp, err := httpClient.Get(apiURL)
-			if err != nil {
-				result = fmt.Sprintf("Error making request: %v\n", err)
-				//color = colorRed
-			} else {
-				now := time.Now()
-				result = fmt.Sprintf("[Deimos Archive FastAPI] Status: %d <> Time: %s\n", resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
-				//color = colorGreen
-
-				if err := resp.Body.Close(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
-				}
-			}
-
-			logResult(file, result)
-
-			time.Sleep(interval)
-		}
-	}()
+            logResult(file, result)
+            time.Sleep(interval)
+            }
+        }()
+    }
 
 	// One goroutine per container target, all sharing the single Docker client.
 	// cli is safe to share across goroutines for reads like ContainerInspect.
-	for _, target := range targets {
+    	
+    for _, target := range config.Containers {
 		target := target // capture loop variable per-iteration
 		go func() {
 

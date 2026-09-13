@@ -1,4 +1,5 @@
-[
+{
+    "containers": [
     {"label":"NPM","name":"NginxProxyManager"},
     {"label":"Jellyfin","name":"Jellyfin"},
     {"label":"LocalStack","name":"localstack-main"},
@@ -7,4 +8,8 @@
     {"label":"AudioBookShelf","name":"audiobookshelf"},
     {"label":"NGINX","name":"nginx-homepage"},
     {"label":"Cloudflare-DDNS","name":"Cloudflare-DDNS"}
-]
+    ],
+    "http_endpoints": [
+    {"label": "Deimos Archive FastAPI", "url": "https://deimosarchive.com/health"}
+    ]
+}
