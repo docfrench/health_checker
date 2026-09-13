@@ -241,7 +241,7 @@ func formatSnapshot(snap Snapshot) string {
         } else if h.StatusCode >= 300 {
             color = colorYellow
         }
-        fmt.Fprintf(&b, "%s%-25s%s Status: %-20d Checked: %s\n",
+        fmt.Fprintf(&b, "%s%-25s%s Status: %-30d Checked: %s\n",
             color, h.Label, colorReset, h.StatusCode, h.CheckedAt.Format("03:04:05PM"))
     }
 
@@ -310,7 +310,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keypress := msg.String(); keypress {
 		case "q", "ctrl+c":
 			m.quitting = true
-			return m, nil //tea.Quit
+			return m, tea.Quit
 
 		case "enter":
 			selected, ok := m.list.SelectedItem().(item)
@@ -352,14 +352,6 @@ func tailLog() (string, error) {
 }
 
 
-func quitTool() (string) {
-	_, err := exec.Command("detach", "health_checker").Output()
-	if err != nil {
-		return ""//, err
-	}
-	return "goodbye"//, nil
-}
-
 
 func (m model) View() tea.View {
 	var v tea.View
@@ -370,7 +362,7 @@ func (m model) View() tea.View {
 		header := m.styles.title.Render("Live Container Status <> Press Esc to return")
 		v = tea.NewView(header + "\n\n" + m.statusOutput)
 	} else if m.quitting {
-		v = tea.NewView(quitTool())
+		v = tea.NewView(m.styles.quitText.Render("quitting now!"))
 	} else {
 		v = tea.NewView("\n" + m.list.View())
 	}
@@ -506,8 +498,12 @@ func main() {
 		}()
 	}
 
-	if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
+	if len(os.Args) > 1 && os.Args[1] == "--tui" {
+        if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
+            fmt.Println("Error running program:", err)
+            os.Exit(1)
+        }
+        return
+    }
+    select {}
 }
