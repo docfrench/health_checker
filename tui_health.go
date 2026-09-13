@@ -19,7 +19,7 @@ import (
 
 const (
 	apiURL      = "https://deimosarchive.com/health"
-	interval    = 7200 * time.Second
+	interval    = 120 * time.Second
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
 	colorGreen  = "\033[32m"
@@ -52,20 +52,7 @@ var defaultConfig = appConfig{
     },
 }
 
-func loadConfig() appConfig {
-    data, err := os.ReadFile("/data/config.json")
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Error reading config.json, using defaults: %v\n", err)
-        return defaultConfig
-    }
 
-    var cfg appConfig
-    if err := json.Unmarshal(data, &cfg); err != nil {
-        fmt.Fprintf(os.Stderr, "Error parsing config.json, using defaults: %v\n", err)
-        return defaultConfig
-    }
-    return cfg
-}
 
 type styles struct {
 	title        lipgloss.Style
@@ -134,7 +121,20 @@ func (s *statusStore) snapshot() Snapshot {
     return snap
 }
 
+func loadConfig() appConfig {
+    data, err := os.ReadFile("/data/config.json")
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error reading config.json, using defaults: %v\n", err)
+        return defaultConfig
+    }
 
+    var cfg appConfig
+    if err := json.Unmarshal(data, &cfg); err != nil {
+        fmt.Fprintf(os.Stderr, "Error parsing config.json, using defaults: %v\n", err)
+        return defaultConfig
+    }
+    return cfg
+}
 
 func newStyles(darkBG bool) styles {
 	var s styles
@@ -189,7 +189,7 @@ type model struct {
 type statusMsg string
 
 func tickCmd() tea.Cmd {
-    return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+    return tea.Tick(10*time.Second, func(t time.Time) tea.Msg {
         return tickMsg(t)
     })
 }
@@ -198,11 +198,14 @@ type tickMsg time.Time
 
 func readStatus() (string, error) {
     data, err := os.ReadFile("/data/status.json")
+    var statuses statusStore    
     if err != nil {
         return "", err
     }
-    // parse + format for display — this is where you'd unmarshal
-    // into your snapshot struct and build a human-readable string
+    if err := json.Unmarshal(data, &statuses); err != nil {
+        fmt.Fprintf(os.Stderr, "Error parsing status.json: %v\n", err)
+        return "", err
+    }
     return string(data), nil // placeholder until formatting is written
 }
 
@@ -330,6 +333,70 @@ func (m model) View() tea.View {
     return v 
 }
 
+
+func writeStatusFile(store *statusStore) {
+    snap := store.snapshot()
+    data, err := json.MarshalIndent(snap, "", "  ")
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error marshaling status: %v\n", err)
+        return
+    }
+
+    tmpPath := "/data/status.json.tmp"
+    if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+        fmt.Fprintf(os.Stderr, "Error writing status tmp file: %v\n", err)
+        return
+    }
+    if err := os.Rename(tmpPath, "/data/status.json"); err != nil {
+        fmt.Fprintf(os.Stderr, "Error renaming status file: %v\n", err)
+    }
+}
+
+
+
+func checkContainer(cli *client.Client, file *os.File, store *statusStore, target containerTarget) {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    inspect, err := cli.ContainerInspect(ctx, target.Name)
+    cancel()
+
+    now := time.Now()
+    var result string
+    cs := ContainerStatus{Label: target.Label, CheckedAt: now}
+
+    if err != nil {
+        result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.Label, err, now.Format("2 Jan 06 03:04PM"))
+        cs.Status = "error"
+        cs.Health = "n/a"
+    } else {
+        cs.Status = inspect.State.Status
+        cs.Health = "n/a"
+        if inspect.State.Health != nil {
+            cs.Health = inspect.State.Health.Status
+        }
+        result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.Label, cs.Status, cs.Health, now.Format("2 Jan 06 03:04PM"))
+    }
+
+    store.setContainer(cs)
+    logResult(file, result)
+}
+
+func logResult(file *os.File, result string) {
+	if _, err := file.WriteString(result); err != nil {
+		fmt.Println("Error writing to file:", err)
+	}
+}
+
+func startStatusWriter(store *statusStore) {
+    ticker := time.NewTicker(10 * time.Second)
+    go func() {
+        defer ticker.Stop()
+        for range ticker.C {
+            writeStatusFile(store)
+        }
+    }()
+}
+
+
 func main() {
     config := loadConfig()
 
@@ -408,64 +475,6 @@ func main() {
 	}
 }
 
-func startStatusWriter(store *statusStore) {
-    ticker := time.NewTicker(3 * time.Second)
-    go func() {
-        defer ticker.Stop()
-        for range ticker.C {
-            writeStatusFile(store)
-        }
-    }()
-}
-
-func writeStatusFile(store *statusStore) {
-    snap := store.snapshot()
-    data, err := json.MarshalIndent(snap, "", "  ")
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Error marshaling status: %v\n", err)
-        return
-    }
-
-    tmpPath := "/data/status.json.tmp"
-    if err := os.WriteFile(tmpPath, data, 0644); err != nil {
-        fmt.Fprintf(os.Stderr, "Error writing status tmp file: %v\n", err)
-        return
-    }
-    if err := os.Rename(tmpPath, "/data/status.json"); err != nil {
-        fmt.Fprintf(os.Stderr, "Error renaming status file: %v\n", err)
-    }
-}
 
 
 
-func checkContainer(cli *client.Client, file *os.File, store *statusStore, target containerTarget) {
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    inspect, err := cli.ContainerInspect(ctx, target.Name)
-    cancel()
-
-    now := time.Now()
-    var result string
-    cs := ContainerStatus{Label: target.Label, CheckedAt: now}
-
-    if err != nil {
-        result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.Label, err, now.Format("2 Jan 06 03:04PM"))
-        cs.Status = "error"
-        cs.Health = "n/a"
-    } else {
-        cs.Status = inspect.State.Status
-        cs.Health = "n/a"
-        if inspect.State.Health != nil {
-            cs.Health = inspect.State.Health.Status
-        }
-        result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.Label, cs.Status, cs.Health, now.Format("2 Jan 06 03:04PM"))
-    }
-
-    store.setContainer(cs)
-    logResult(file, result)
-}
-
-func logResult(file *os.File, result string) {
-	if _, err := file.WriteString(result); err != nil {
-		fmt.Println("Error writing to file:", err)
-	}
-}
