@@ -60,7 +60,7 @@ jobs:
 
       - name: Run new container
         run: |
-          docker run -dit \
+          docker run -d \
             --name health_checker \
             --network br0 \
             -v /var/run/docker.sock:/var/run/docker.sock \

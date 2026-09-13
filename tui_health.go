@@ -241,7 +241,7 @@ func formatSnapshot(snap Snapshot) string {
         } else if h.StatusCode >= 300 {
             color = colorYellow
         }
-        fmt.Fprintf(&b, "%s%-25s%s Status: %-30d Checked: %s\n",
+        fmt.Fprintf(&b, "%s%-25s%s Status: %-29d Checked: %s\n",
             color, h.Label, colorReset, h.StatusCode, h.CheckedAt.Format("03:04:05PM"))
     }
 
