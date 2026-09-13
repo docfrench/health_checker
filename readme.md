@@ -22,8 +22,8 @@ docker exec -it health_checker ./health_checker --tui
 
 Once connected, choose to either view the logs:
 
-![alt text](https://github.com/docfrench/health_tracker/images/logs.png "Tail logs")
+![alt text](https://github.com/docfrench/health_checker/images/logs.png "Tail logs")
 
 Or view live status of containers:
 
-![alt text](https://github.com/docfrench/health_tracker/images/live.png "Live status")
+![alt text](https://github.com/docfrench/health_checker/images/live.png "Live status")
