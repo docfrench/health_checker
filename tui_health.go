@@ -199,20 +199,6 @@ func runTailCmd() tea.Cmd {
     }
 }
 
-
-func runLiveCmd() tea.Cmd {
-    return func() tea.Msg {
-        output, err := tailLog()
-        if err != nil {
-            return logMsg(fmt.Sprintf("error reading log: %v", err))
-        }
-        return logMsg(output)
-    }
-}
-
-
-
-
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
     switch msg := msg.(type) {
