@@ -203,7 +203,7 @@ func readStatus() (string, error) {
 		fmt.Fprintf(os.Stderr, "Error parsing status.json: %v\n", err)
 		return "", err
 	}
-	return formatSnapshot(snap), nil // placeholder until formatting is written
+	return formatSnapshot(snap), nil
 }
 
 func formatSnapshot(snap Snapshot) string {
@@ -228,7 +228,7 @@ func formatSnapshot(snap Snapshot) string {
         if c.Status == "error" {
             color = colorRed
         }
-        fmt.Fprintf(&b, "%s%-20s%s Status: %-10s Health: %-10s Checked: %s\n",
+        fmt.Fprintf(&b, "%s%-25s%s Status: %-10s Health: %-10s Checked: %s\n",
             color, c.Label, colorReset, c.Status, c.Health, c.CheckedAt.Format("03:04:05PM"))
     }
 
@@ -241,7 +241,7 @@ func formatSnapshot(snap Snapshot) string {
         } else if h.StatusCode >= 300 {
             color = colorYellow
         }
-        fmt.Fprintf(&b, "%s%-25s%s Status: %-5d Checked: %s\n",
+        fmt.Fprintf(&b, "%s%-25s%s Status: %-20d Checked: %s\n",
             color, h.Label, colorReset, h.StatusCode, h.CheckedAt.Format("03:04:05PM"))
     }
 
@@ -310,7 +310,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keypress := msg.String(); keypress {
 		case "q", "ctrl+c":
 			m.quitting = true
-			return m, tea.Quit
+			return m, nil //tea.Quit
 
 		case "enter":
 			selected, ok := m.list.SelectedItem().(item)
@@ -351,6 +351,16 @@ func tailLog() (string, error) {
 	return string(out), nil
 }
 
+
+func quitTool() (string) {
+	_, err := exec.Command("detach", "health_checker").Output()
+	if err != nil {
+		return ""//, err
+	}
+	return "goodbye"//, nil
+}
+
+
 func (m model) View() tea.View {
 	var v tea.View
 	if m.choice == "Show tail -n 30" {
@@ -360,7 +370,7 @@ func (m model) View() tea.View {
 		header := m.styles.title.Render("Live Container Status <> Press Esc to return")
 		v = tea.NewView(header + "\n\n" + m.statusOutput)
 	} else if m.quitting {
-		v = tea.NewView(m.styles.quitText.Render("Quit."))
+		v = tea.NewView(quitTool())
 	} else {
 		v = tea.NewView("\n" + m.list.View())
 	}
