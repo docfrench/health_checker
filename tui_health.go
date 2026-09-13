@@ -10,6 +10,7 @@ import (
     "os/exec"
     "encoding/json"
 	"time"
+    "sync"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -74,6 +75,66 @@ type styles struct {
 	help         lipgloss.Style
 	quitText     lipgloss.Style
 }
+
+
+type ContainerStatus struct {
+    Label     string    `json:"label"`
+    Status    string    `json:"status"`
+    Health    string    `json:"health"`
+    CheckedAt time.Time `json:"checked_at"`
+}
+
+type HTTPStatus struct {
+    Label      string    `json:"label"`
+    StatusCode int       `json:"status_code"`
+    CheckedAt  time.Time `json:"checked_at"`
+}
+
+type Snapshot struct {
+    UpdatedAt  time.Time          `json:"updated_at"`
+    Containers []ContainerStatus  `json:"containers"`
+    HTTPChecks []HTTPStatus       `json:"http_checks"`
+}
+
+type statusStore struct {
+    mu         sync.Mutex
+    containers map[string]ContainerStatus
+    http       map[string]HTTPStatus
+}
+
+func newStatusStore() *statusStore {
+    return &statusStore{
+        containers: make(map[string]ContainerStatus),
+        http:       make(map[string]HTTPStatus),
+    }
+}
+
+func (s *statusStore) setContainer(cs ContainerStatus) {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    s.containers[cs.Label] = cs
+}
+
+func (s *statusStore) setHTTP(hs HTTPStatus) {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    s.http[hs.Label] = hs
+}
+
+func (s *statusStore) snapshot() Snapshot {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    snap := Snapshot{UpdatedAt: time.Now()}
+    for _, c := range s.containers {
+        snap.Containers = append(snap.Containers, c)
+    }
+    for _, h := range s.http {
+        snap.HTTPChecks = append(snap.HTTPChecks, h)
+    }
+    return snap
+}
+
+
 
 func newStyles(darkBG bool) styles {
 	var s styles
@@ -296,25 +357,29 @@ func main() {
 		}
 	}()
 
-
-
+    store := newStatusStore()
+    startStatusWriter(store)
+    
 	// HTTP API health check
     for _, target := range config.HTTPEndpoints {
         target := target
         go func() {
         for {
+            now := time.Now()
+            hs := HTTPStatus{Label: target.Label, CheckedAt: now}
             var result string
             resp, err := httpClient.Get(target.URL)
             if err != nil {
                 result = fmt.Sprintf("[%s] Error making request: %v\n", target.Label, err)
+                hs.StatusCode = 0
             } else {
-                now := time.Now()
+                hs.StatusCode = resp.StatusCode
                 result = fmt.Sprintf("[%s] Status: %d <> Time: %s\n", target.Label, resp.StatusCode, now.Format("2 Jan 06 03:04PM"))
                 if err := resp.Body.Close(); err != nil {
                     fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
                 }
             }
-
+            store.setHTTP(hs)
             logResult(file, result)
             time.Sleep(interval)
             }
@@ -328,7 +393,7 @@ func main() {
 		go func() {
 
 			for {
-				checkContainer(cli, file, target)
+				checkContainer(cli, file, store, target)
 				time.Sleep(interval)
 			}
 		}()
@@ -343,29 +408,60 @@ func main() {
 	}
 }
 
-func checkContainer(cli *client.Client, file *os.File, target containerTarget) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	inspect, err := cli.ContainerInspect(ctx, target.Name)
-	cancel()
+func startStatusWriter(store *statusStore) {
+    ticker := time.NewTicker(3 * time.Second)
+    go func() {
+        defer ticker.Stop()
+        for range ticker.C {
+            writeStatusFile(store)
+        }
+    }()
+}
 
-	now := time.Now()
-	var result string
+func writeStatusFile(store *statusStore) {
+    snap := store.snapshot()
+    data, err := json.MarshalIndent(snap, "", "  ")
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error marshaling status: %v\n", err)
+        return
+    }
+
+    tmpPath := "/data/status.json.tmp"
+    if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+        fmt.Fprintf(os.Stderr, "Error writing status tmp file: %v\n", err)
+        return
+    }
+    if err := os.Rename(tmpPath, "/data/status.json"); err != nil {
+        fmt.Fprintf(os.Stderr, "Error renaming status file: %v\n", err)
+    }
+}
 
 
-	if err != nil {
-		result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.Label, err, now.Format("2 Jan 06 03:04PM"))
 
-	} else {
-		status := inspect.State.Status // "running", "exited", etc.
-		health := "n/a"
-		if inspect.State.Health != nil {
-			health = inspect.State.Health.Status // "healthy", "unhealthy", "starting"
-		}
-		result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.Label, status, health, now.Format("2 Jan 06 03:04PM"))
-	}
+func checkContainer(cli *client.Client, file *os.File, store *statusStore, target containerTarget) {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    inspect, err := cli.ContainerInspect(ctx, target.Name)
+    cancel()
 
+    now := time.Now()
+    var result string
+    cs := ContainerStatus{Label: target.Label, CheckedAt: now}
 
-	logResult(file, result)
+    if err != nil {
+        result = fmt.Sprintf("[%s] Error inspecting container: %v <> Time: %s\n", target.Label, err, now.Format("2 Jan 06 03:04PM"))
+        cs.Status = "error"
+        cs.Health = "n/a"
+    } else {
+        cs.Status = inspect.State.Status
+        cs.Health = "n/a"
+        if inspect.State.Health != nil {
+            cs.Health = inspect.State.Health.Status
+        }
+        result = fmt.Sprintf("[%s] Status: %s <> Health: %s <> Time: %s\n", target.Label, cs.Status, cs.Health, now.Format("2 Jan 06 03:04PM"))
+    }
+
+    store.setContainer(cs)
+    logResult(file, result)
 }
 
 func logResult(file *os.File, result string) {
