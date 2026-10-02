@@ -20,7 +20,7 @@ A small Go service that monitors the health of Docker containers and HTTP endpoi
 - Persistent log of status changes
 - Interactive TUI built with [Bubble Tea](https://github.com/charmbracelet/bubbletea): live status view and log tail
 - Targets defined in a single `config.json`
-- TODO: notifications? alerting? (add if it exists, delete if not)
+
 
 ## Quick start
 
@@ -45,20 +45,35 @@ docker exec -it health_checker ./health_checker --tui
 
 ```json
 {
-  "server_name": "tower",
-  "poll_interval_seconds": 30,
-  "containers": ["plex", "sonarr"],
-  "endpoints": [
-    { "name": "Home Assistant", "url": "http://192.168.1.10:8123/api/" }
-  ]
+    "server_name": "My Server",    
+    "containers": [
+    {"label":"NPM","name":"NginxProxyManager"}
+    // label = what the TUI shows to you; name = container name
+    ],
+    "http_endpoints": [
+    {"label": "My Website", "url": "https://mywebsite.com/health"}
+    ]
 }
 ```
 
-> TODO: replace with the real schema from `config.json.example`, and document each field, default, and unit.
+
 
 ## How it works
 
-On startup it loads `config.json` and spawns a goroutine per target. Each one polls on an interval, either asking the Docker daemon for container state or issuing an HTTP GET against the endpoint. Results are written to the log and to `status.json`, which the TUI reads. TODO: confirm this flow and explain what `status.json` is for.
+On startup it loads `config.json` and spawns a goroutine per target. Each one polls on an interval, either asking the Docker daemon for container state or issuing an HTTP GET against the endpoint. Results are written to the log and to `status.json`, which the TUI reads. 
+
+```json
+{
+  "updated_at": "2026-09-13T14:32:01-04:00",
+  "containers": [
+    {"label": "NPM", "status": "running", "health": "healthy", "checked_at": "2026-09-13T14:32:00-04:00"},
+    {"label": "Jellyfin", "status": "running", "health": "n/a", "checked_at": "2026-09-13T14:32:00-04:00"}
+  ],
+  "http_checks": [
+    {"label": "Deimos Archive FastAPI", "status_code": 200, "checked_at": "2026-09-13T14:31:58-04:00"}
+  ]
+}
+```
 
 ## Views
 
@@ -73,8 +88,8 @@ go build -o health_checker .
 go test ./...    # TODO: if tests exist; CI runs: <what ci.yml does>
 ```
 
-Requires Go TODO (match `go.mod`).
+Requires Go 1.26
 
 ## License
 
-TODO: add a LICENSE file (MIT is the usual choice for a personal tool).
+See LICENSE file
